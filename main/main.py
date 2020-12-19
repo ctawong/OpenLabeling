@@ -12,8 +12,10 @@ from tqdm import tqdm
 from lxml import etree
 import xml.etree.cElementTree as ET
 import time
-import string
+import imagesize
 
+KEY_LEFT = 2424832
+KEY_RIGHT = 2555904
 DELAY = 20 # keyboard delay (in milliseconds)
 WITH_QT = False
 try:
@@ -216,6 +218,11 @@ def delete_img_index(x):
     os.remove(img_path)
     text = 'Deleted file {}.'.format(img_path)
     display_text(text, 1000)
+    # remve annotation files
+    for ann_path in get_annotation_paths(img_path, annotation_formats):
+        if os.path.isfile(ann_path):
+            os.remove(ann_path)
+
 
 
 def set_class_index(x):
@@ -1052,13 +1059,20 @@ if __name__ == '__main__':
                 os.makedirs(new_video_dir)
 
     # create empty annotation files for each image, if it doesn't exist already
+    startTime = time.time()
+    fileCount = 0
     for img_path in IMAGE_PATH_LIST:
         # image info for the .xml file
-        test_img = cv2.imread(img_path)
+        #test_img = cv2.imread(img_path)
         abs_path = os.path.abspath(img_path)
         folder_name = os.path.dirname(img_path)
         image_name = os.path.basename(img_path)
-        img_height, img_width, depth = (str(number) for number in test_img.shape)
+        # use imagesize to speed up
+        img_width2, img_height2 = imagesize.get(img_path)
+        depth2 = 3
+        img_height, img_width, depth = (str(img_width2), str(img_height2), str(depth2))
+        #img_height, img_width, depth = (str(number) for number in test_img.shape)
+
 
         for ann_path in get_annotation_paths(img_path, annotation_formats):
             if not os.path.isfile(ann_path):
@@ -1066,6 +1080,10 @@ if __name__ == '__main__':
                     open(ann_path, 'a').close()
                 elif '.xml' in ann_path:
                     create_PASCAL_VOC_xml(ann_path, abs_path, folder_name, image_name, img_height, img_width, depth)
+
+        fileCount += 1
+        if fileCount %500 ==0:
+            print('Processed %d files at %1.2f'%(fileCount, time.time()-startTime))
 
     # load class list
     with open('class_list.txt') as f:
@@ -1147,16 +1165,17 @@ if __name__ == '__main__':
 
         cv2.imshow(WINDOW_NAME, tmp_img)
         pressed_key = cv2.waitKeyEx(DELAY)
-        #print('key pressed: %s'%pressed_key)
+        if pressed_key != -1:
+            print('key pressed: %s'%pressed_key)
 
         if dragBBox.anchor_being_dragged is None:
             ''' Key Listeners START '''
-            if pressed_key == ord('a') or pressed_key == ord('d'):
+            if pressed_key in [ord('d'), ord('a'), KEY_LEFT, KEY_RIGHT]:
                 # show previous image key listener
-                if pressed_key == ord('a') or pressed_key == 2424832: # a or left
+                if pressed_key == ord('a') or pressed_key == KEY_LEFT: # a or left
                     img_index = decrease_index(img_index, last_img_index)
                 # show next image key listener
-                elif pressed_key == ord('d') or pressed_key == 2555904: # d or right
+                elif pressed_key == ord('d') or pressed_key == KEY_RIGHT: # d or right
                     img_index = increase_index(img_index, last_img_index)
                 set_img_index(img_index)
                 cv2.setTrackbarPos(TRACKBAR_IMG, WINDOW_NAME, img_index)
