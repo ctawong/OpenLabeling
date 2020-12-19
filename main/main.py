@@ -11,7 +11,8 @@ from tqdm import tqdm
 
 from lxml import etree
 import xml.etree.cElementTree as ET
-
+import time
+import string
 
 DELAY = 20 # keyboard delay (in milliseconds)
 WITH_QT = False
@@ -187,6 +188,13 @@ class dragBBox:
             dragBBox.selected_object = None
             dragBBox.anchor_being_dragged = None
 
+def isImageFile(filepath):
+    ext = filepath.split('.')[-1]
+    if ext.lower() in ['jpg', 'png', 'bmp', 'jpg']:
+        return True
+    else:
+        return False
+
 def display_text(text, time):
     if WITH_QT:
         cv2.displayOverlay(WINDOW_NAME, text, time)
@@ -199,6 +207,14 @@ def set_img_index(x):
     img_path = IMAGE_PATH_LIST[img_index]
     img = cv2.imread(img_path)
     text = 'Showing image {}/{}, path: {}'.format(str(img_index), str(last_img_index), img_path)
+    display_text(text, 1000)
+
+def delete_img_index(x):
+    global img_index, img
+    img_index = x
+    img_path = IMAGE_PATH_LIST[img_index]
+    os.remove(img_path)
+    text = 'Deleted file {}.'.format(img_path)
     display_text(text, 1000)
 
 
@@ -223,6 +239,13 @@ def decrease_index(current_index, last_index):
     current_index -= 1
     if current_index < 0:
         current_index = last_index
+    img_path = IMAGE_PATH_LIST[current_index]
+    while not os.path.isfile(img_path):
+       # file may be deleted
+       current_index -= 1
+       if current_index > last_index:
+           current_index = last_index
+       img_path = IMAGE_PATH_LIST[current_index]
     return current_index
 
 
@@ -230,6 +253,15 @@ def increase_index(current_index, last_index):
     current_index += 1
     if current_index > last_index:
         current_index = 0
+
+    img_path = IMAGE_PATH_LIST[current_index]
+    while not os.path.isfile(img_path):
+       # file may be deleted
+       current_index += 1
+       if current_index > last_index:
+           current_index = 0
+       img_path = IMAGE_PATH_LIST[current_index]
+
     return current_index
 
 
@@ -973,14 +1005,17 @@ if __name__ == '__main__':
     # load all images and videos (with multiple extensions) from a directory using OpenCV
     IMAGE_PATH_LIST = []
     VIDEO_NAME_DICT = {}
+    startTime = time.time()
     for f in sorted(os.listdir(INPUT_DIR), key = natural_sort_key):
+        if len(IMAGE_PATH_LIST) %500==0:
+            print('%d files: %1.2f'%(len(IMAGE_PATH_LIST), time.time()-startTime))
         f_path = os.path.join(INPUT_DIR, f)
         if os.path.isdir(f_path):
             # skip directories
             continue
         # check if it is an image
-        test_img = cv2.imread(f_path)
-        if test_img is not None:
+        #test_img = cv2.imread(f_path)
+        if isImageFile(f_path):
             IMAGE_PATH_LIST.append(f_path)
         else:
             # test if it is a video
@@ -1111,16 +1146,17 @@ if __name__ == '__main__':
                 point_2 = (-1, -1)
 
         cv2.imshow(WINDOW_NAME, tmp_img)
-        pressed_key = cv2.waitKey(DELAY)
+        pressed_key = cv2.waitKeyEx(DELAY)
+        #print('key pressed: %s'%pressed_key)
 
         if dragBBox.anchor_being_dragged is None:
             ''' Key Listeners START '''
             if pressed_key == ord('a') or pressed_key == ord('d'):
                 # show previous image key listener
-                if pressed_key == ord('a'):
+                if pressed_key == ord('a') or pressed_key == 2424832: # a or left
                     img_index = decrease_index(img_index, last_img_index)
                 # show next image key listener
-                elif pressed_key == ord('d'):
+                elif pressed_key == ord('d') or pressed_key == 2555904: # d or right
                     img_index = increase_index(img_index, last_img_index)
                 set_img_index(img_index)
                 cv2.setTrackbarPos(TRACKBAR_IMG, WINDOW_NAME, img_index)
@@ -1174,6 +1210,12 @@ if __name__ == '__main__':
                             class_index = obj[0]
                             color = class_rgb[class_index].tolist()
                             label_tracker.start_tracker(json_file_data, json_file_path, img_path, obj, color, annotation_formats)
+            elif pressed_key == ord('x'):
+                # delete image
+                delete_img_index(img_index)
+                img_index = increase_index(img_index, last_img_index)
+                set_img_index(img_index)
+                cv2.setTrackbarPos(TRACKBAR_IMG, WINDOW_NAME, img_index)
             # quit key listener
             elif pressed_key == ord('q'):
                 break

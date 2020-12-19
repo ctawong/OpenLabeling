@@ -123,9 +123,11 @@ Keyboard, press:
 | --- | --- |
 | a/d | previous/next image |
 | s/w | previous/next class |
+| x | delete image |
 | e | edges |
 | h | help |
 | q | quit |
+
 
 Video:
 
